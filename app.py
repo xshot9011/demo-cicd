@@ -27,7 +27,6 @@ class Handler(BaseHTTPRequestHandler):
 def make_server(host=HOST, port=PORT):
     return HTTPServer((host, port), Handler)
 
-
 if __name__ == "__main__":
     server = make_server()
     print(f"Listening on {HOST}:{PORT}")
