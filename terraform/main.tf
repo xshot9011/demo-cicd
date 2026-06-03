@@ -19,7 +19,7 @@ module "mca_data_pipeline_ecr" {
   source  = "terraform-aws-modules/ecr/aws"
   version = "2.4.0"
 
-  repository_name                 = format("%s-demo-cicd", local.name)
+  repository_name                 = format("%s-cicd", local.name)
   repository_image_tag_mutability = "MUTABLE"
 
   repository_read_write_access_arns = [module.iam_github_oidc_role.arn]
