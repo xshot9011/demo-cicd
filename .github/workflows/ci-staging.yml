@@ -1,8 +1,8 @@
 name: CI
 
-on: {}
-  # push:
-  #   branches: [main]
+on:
+  push:
+    branches: [main]
   # pull_request:
   #   branches: [main]
 
@@ -15,9 +15,8 @@ permissions:
 env:
   AWS_REGION: ap-southeast-7
   # ECR (or other registry) repo to push the multi-arch image to.
-  IMAGE_REPO: <ACCOUNT_ID>.dkr.ecr.ap-southeast-7.amazonaws.com/demo-cicd
-  ACCOUNT_ID: <ACCOUNT_ID>
-  ROLE_NAME: <ROLE_NAME>
+  IMAGE_REPO: 398664673656.dkr.ecr.ap-southeast-7.amazonaws.com/demo-staging-cicd
+  ROLE_ARN: arn:aws:iam::398664673656:role/demo-staging-gtihub-oidc
 
 jobs:
   test:
@@ -49,7 +48,7 @@ jobs:
       - name: Configure AWS credentials (assume role via OIDC)
         uses: aws-actions/configure-aws-credentials@6.1.1
         with:
-          role-to-assume: arn:aws:iam::${{ env.AWS_REGION }}:role/${{ env.ROLE_NAME }}
+          role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
