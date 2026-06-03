@@ -1,5 +1,5 @@
 # Multi-arch friendly: relies on buildx setting TARGETPLATFORM under the hood.
-FROM python:3.12-slim
+FROM gcr.io/distroless/python3-debian13
 
 WORKDIR /app
 
