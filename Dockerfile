@@ -6,9 +6,9 @@ RUN python3 -m venv /venv
 RUN /venv/bin/pip install -r /opt/app/requirements.txt
 
 FROM gcr.io/distroless/python3-debian12
-COPY --from=build-venv /venv /venv
-COPY app.py /app
 WORKDIR /app
+COPY --from=build-venv /venv /venv
+COPY app.py .
 EXPOSE 8080
 
 CMD ["python", "app.py"]
