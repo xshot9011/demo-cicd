@@ -9,8 +9,8 @@ on:
 # Required for aws-actions/configure-aws-credentials to request the OIDC token
 # used to assume the IAM role (no long-lived AWS keys needed).
 permissions:
-  id-token: write
-  contents: read
+  id-token: write   # assume AWS role via OIDC
+  contents: write   # create/push git tags
 
 env:
   AWS_REGION: ap-southeast-7
@@ -37,9 +37,72 @@ jobs:
       - name: Run unit tests
         run: python -m unittest discover -v
 
+  version:
+    name: Compute version
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      version: ${{ steps.meta.outputs.version }}
+      bump: ${{ steps.meta.outputs.bump }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0          # need full history + tags for semver
+          fetch-tags: true
+
+      - name: Derive short SHA + semantic version
+        id: meta
+        run: |
+          set -euo pipefail
+
+          # --- pick the real commit + message (handle PR vs push) ------------
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SHA="${{ github.event.pull_request.head.sha }}"
+            MSG="${{ github.event.pull_request.title }}"
+          else
+            SHA="${{ github.sha }}"
+            MSG=$(git log -1 --pretty=%s)
+          fi
+          SHORT_SHA=$(git rev-parse --short=7 "$SHA")
+
+          # --- decide bump from conventional-commit type ---------------------
+          # feat -> minor ; chore/fix/etc -> patch ; "!" or BREAKING -> major
+          MSG_LC=$(printf '%s' "$MSG" | tr '[:upper:]' '[:lower:]')
+          if printf '%s' "$MSG" | grep -qE '^[a-z]+(\([^)]+\))?!:' \
+             || printf '%s' "$MSG" | grep -q 'BREAKING CHANGE'; then
+            BUMP=major
+          elif printf '%s' "$MSG_LC" | grep -qE '^feat(\([^)]+\))?:'; then
+            BUMP=minor
+          else
+            BUMP=patch
+          fi
+
+          # --- last tag (default v0.0.0) -------------------------------------
+          LAST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          LAST_TAG=${LAST_TAG:-v0.0.0}
+          VER=${LAST_TAG#v}
+          MAJOR=${VER%%.*}; REST=${VER#*.}; MINOR=${REST%%.*}; PATCH=${REST#*.}
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+          VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "message: $MSG"
+          echo "bump:    $BUMP  ($LAST_TAG -> $VERSION)"
+          {
+            echo "short_sha=$SHORT_SHA"
+            echo "version=$VERSION"
+            echo "bump=$BUMP"
+          } >> "$GITHUB_OUTPUT"
+
   build:
     name: Build multi-arch image
-    needs: test
+    needs: version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -66,6 +129,8 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ env.IMAGE_REPO }}:${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE_REPO }}:${{ needs.version.outputs.short_sha }}
+            ${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
