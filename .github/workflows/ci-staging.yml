@@ -134,3 +134,30 @@ jobs:
             ${{ env.IMAGE_REPO }}:${{ needs.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  tag:
+    name: Push git tag
+    needs: [version, build]
+    if: github.event_name == 'push'   # tag on merge to main, not on PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create and push version tag
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          SHORT_SHA: ${{ needs.version.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists, skipping."
+          else
+            git tag -a "$VERSION" -m "$VERSION (${SHORT_SHA})"
+            git push origin "$VERSION"
+            echo "Pushed git tag $VERSION"
+          fi
